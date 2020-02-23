@@ -53,7 +53,7 @@ def run(*configs):
             'prog',
             *configs,
             '--',
-            os.path.join(os.path.dirname(__file__), '../testing/checker.sh'),
+            os.path.join(os.path.dirname(__file__), '../testing/check_user.sh'),
             f.name,
         ]
 
@@ -75,7 +75,7 @@ def assert_not_in_environment():
     with tempfile.NamedTemporaryFile() as f:
         subprocess.call(
             ' '.join([
-                os.path.join(os.path.dirname(__file__), '../testing/checker.sh'),
+                os.path.join(os.path.dirname(__file__), '../testing/check_user.sh'),
                 f.name,
             ]),
             shell=True,

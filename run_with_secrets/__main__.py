@@ -3,6 +3,9 @@ import json
 import os
 import subprocess
 import sys
+from grp import getgrnam
+from pwd import getpwnam
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -29,7 +32,18 @@ def main(argv: Optional[List[str]] = None):
 
         env.update(additions)
 
-    subprocess.call(' '.join(args.command), shell=True, env=env)
+    try:
+        subprocess.call(
+            ' '.join(args.command),
+            shell=True,
+            env=env,
+            preexec_fn=set_user(args.user),
+        )
+    except subprocess.SubprocessError as e:
+        if not str(e) == 'Exception occurred in preexec_fn.':
+            raise
+
+        print('error: unable to change user. are you root?')
 
 
 def parse_args(argv: Optional[List[str]] = None):
@@ -42,12 +56,25 @@ def parse_args(argv: Optional[List[str]] = None):
         action='count',
     )
     parser.add_argument(
+        '-u',
+        '--user',
+        type=str,
+        help=(
+            'Specifies the user to run the command. This is handy when you want to '
+            'run it as a specific user, that would not normally have access to the '
+            'credentials file. Example: user[:group]'
+        ),
+    )
+    parser.add_argument(
         'config',
         nargs='+',
     )
 
     output = parser.parse_args(argv)
-    for index, parameter in enumerate(sys.argv[1:]):
+    for index, parameter in enumerate(sys.argv[1:][::-1]):
+        # argparse removes the first `--` parameter, and lumps it altogether with
+        # config (since nargs='+'). Therefore, we count backwards until we hit this
+        # parameter, and we know how many args in the command.
         if parameter == '--':
             break
     else:
@@ -75,6 +102,26 @@ def process_file(filepath: str, prefix: str = 'SECRET') -> Dict[str, str]:
         output[f'{prefix.upper()}_{key.upper()}'] = str(value)
     
     return output
+
+
+def set_user(user: str) -> Callable:
+    if ':' in user:
+        username, groupname = user.split(':')
+        uid = getpwnam(username).pw_uid
+        gid = getgrnam(groupname).gr_gid
+    else:
+        uid = getpwnam(user).pw_uid
+        gid = None
+
+    def demote():
+        # setgid needs to come first, otherwise, the new user won't have
+        # the permission to change the group.
+        if gid:
+            os.setgid(gid)
+
+        os.setuid(uid)
+    
+    return demote
 
 
 if __name__ == '__main__':
