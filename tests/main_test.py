@@ -47,7 +47,14 @@ def test_nested_values():
     assert_not_in_environment()
 
 
-def run(*configs):
+def test_custom_prefix():
+    values = run('--prefix', 'custom', 'testing/configA.yaml', prefix='CUSTOM')
+
+    assert values == ['CUSTOM_TOKEN=configA']
+    assert_not_in_environment()
+
+
+def run(*configs, prefix='SECRET'):
     with tempfile.NamedTemporaryFile() as f:
         argv = [
             'prog',
@@ -55,6 +62,7 @@ def run(*configs):
             '--',
             os.path.join(os.path.dirname(__file__), '../testing/check_user.sh'),
             f.name,
+            prefix,
         ]
 
         with mock.patch('sys.argv', argv):
@@ -63,11 +71,11 @@ def run(*configs):
         return f.read().decode('utf-8').splitlines()
 
 
-def assert_not_in_environment():
+def assert_not_in_environment(prefix='SECRET'):
     # Secrets should only reside in the subprocess.
     secrets = list(
         filter(
-            lambda x: x.startswith('SECRET_'),
+            lambda x: x.startswith(f'{prefix}_'),
             os.environ,
         )
     )
@@ -77,6 +85,7 @@ def assert_not_in_environment():
             ' '.join([
                 os.path.join(os.path.dirname(__file__), '../testing/check_user.sh'),
                 f.name,
+                prefix,
             ]),
             shell=True,
         )
@@ -89,3 +98,17 @@ class TestUsage:
         with pytest.raises(argparse.ArgumentTypeError):
             main('testing/configA.yaml'.split())
 
+    def test_prefix_must_not_be_null(self):
+        argv = [
+            'prog',
+            '--prefix',
+            '',
+            'testing/configA.yaml',
+            '--',
+            'blah',
+        ]
+
+        with mock.patch('sys.exit') as m, mock.patch('sys.argv', argv):
+            main(argv[1:])
+
+        assert m.called

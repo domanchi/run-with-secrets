@@ -15,10 +15,15 @@ import yaml
 
 def main(argv: Optional[List[str]] = None):
     args = parse_args(argv)
+    if not args.prefix:
+        # This is honestly only used for test cases. In real execution, sys.exit
+        # will be called before this, OR the default value will be set. However,
+        # in test cases, since we mock out `sys.exit`, it will continue on.
+        return
 
     env = {}
     for filepath in args.config:
-        additions = process_file(filepath)
+        additions = process_file(filepath, args.prefix)
         if not additions:
             continue
 
@@ -56,6 +61,12 @@ def parse_args(argv: Optional[List[str]] = None):
         action='count',
     )
     parser.add_argument(
+        '--prefix',
+        default='SECRET',
+        type=lambda x: (len(x) and x) or parser.error('Prefix must not be null.'),
+        help='Prefix to be used for environment variables.',
+    )
+    parser.add_argument(
         '-u',
         '--user',
         type=str,
@@ -83,9 +94,9 @@ def parse_args(argv: Optional[List[str]] = None):
             break
     else:
         raise argparse.ArgumentTypeError('Unspecified command.')
-    
-    output.command = output.config[index:]
-    output.config = output.config[:index]
+
+    output.command = output.config[-index:]
+    output.config = output.config[:-index]
 
     return output
 
@@ -109,6 +120,9 @@ def process_file(filepath: str, prefix: str = 'SECRET') -> Dict[str, str]:
 
 
 def set_user(user: str) -> Callable:
+    if not user:
+        return bool
+
     if ':' in user:
         username, groupname = user.split(':')
         uid = getpwnam(username).pw_uid
