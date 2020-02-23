@@ -68,6 +68,10 @@ def parse_args(argv: Optional[List[str]] = None):
     parser.add_argument(
         'config',
         nargs='+',
+        help=(
+            'Specifies config files to load into environment. Multiple config files '
+            'are joined like a chainmap.'
+        ),
     )
 
     output = parser.parse_args(argv)
