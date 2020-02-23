@@ -23,6 +23,30 @@ def test_basic_json():
     assert_not_in_environment()
 
 
+def test_multiple_config_files():
+    values = run('testing/configA.yaml', 'testing/configC.yaml')
+
+    assert {
+        'SECRET_TOKEN=configA',
+        'SECRET_APIKEY=configC',
+    } == set(values)
+    assert_not_in_environment()
+
+
+def test_conflicting_values():
+    values = run('testing/configA.yaml', 'testing/configB.json')
+
+    assert values == ['SECRET_TOKEN=configB']
+    assert_not_in_environment()
+
+
+def test_nested_values():
+    values = run('testing/configD.yaml')
+    
+    assert values == ['SECRET_NESTED={"value":"apikey"}']
+    assert_not_in_environment()
+
+
 def run(*configs):
     with tempfile.NamedTemporaryFile() as f:
         argv = [
@@ -41,7 +65,13 @@ def run(*configs):
 
 def assert_not_in_environment():
     # Secrets should only reside in the subprocess.
-    assert not os.environ.get('SECRET_TOKEN')
+    secrets = list(
+        filter(
+            lambda x: x.startswith('SECRET_'),
+            os.environ,
+        )
+    )
+    assert not secrets
     with tempfile.NamedTemporaryFile() as f:
         subprocess.call(
             ' '.join([
@@ -51,7 +81,7 @@ def assert_not_in_environment():
             shell=True,
         )
 
-        assert b'SECRET_TOKEN' not in f.read()
+        assert not f.read()
 
 
 class TestUsage:

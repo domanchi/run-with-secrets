@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -14,7 +15,19 @@ def main(argv: Optional[List[str]] = None):
 
     env = {}
     for filepath in args.config:
-        env.update(process_file(filepath))
+        additions = process_file(filepath)
+        if not additions:
+            continue
+
+        duplicate_keys = set(env.keys()) & set(additions.keys())
+        if duplicate_keys:
+            for key in duplicate_keys:
+                print(
+                    f'warning: duplicate key found. using "{key}" from {filepath}',
+                    file=sys.stderr,
+                )
+
+        env.update(additions)
 
     subprocess.call(' '.join(args.command), shell=True, env=env)
 
@@ -56,7 +69,10 @@ def process_file(filepath: str, prefix: str = 'SECRET') -> Dict[str, str]:
 
     output = {}
     for key, value in data.items():
-        output[f'{prefix.upper()}_{key.upper()}'] = value
+        if isinstance(value, dict):
+            value = json.dumps(value, separators=(',', ':',))
+
+        output[f'{prefix.upper()}_{key.upper()}'] = str(value)
     
     return output
 
